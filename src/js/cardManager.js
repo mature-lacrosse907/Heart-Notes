@@ -72,10 +72,9 @@ export class CardManager {
 
 			// 计算可用区域（考虑卡片尺寸和边距）
 			const availableWidth = window.innerWidth - cardWidth - horizontalMargin * 2
-			const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2 - 60 // 减去footer高度
+			const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2
 
 			// 计算爱心的缩放比例（取较小值以确保完整显示）
-			// 增加缩放比例让爱心更大：桌面端从0.85增加到0.98，移动端从0.7增加到0.82
 			const scaleRatio = this.isMobile ? 0.82 : 0.98
 			const scale = Math.min(availableWidth, availableHeight) * scaleRatio
 
@@ -545,7 +544,13 @@ export class CardManager {
 	 * 更新移动端状态
 	 */
 	updateMobileState() {
+		const wasMobile = this.isMobile
 		this.isMobile = isMobileDevice()
+
+		// 如果移动端状态改变，重新获取爱心位置
+		if (wasMobile !== this.isMobile) {
+			this.heartPositions = CONFIG.LAYOUT.getHeartPositions()
+		}
 	}
 
 	/**
@@ -573,10 +578,9 @@ export class CardManager {
 
 		// 计算可用区域
 		const availableWidth = window.innerWidth - cardWidth - horizontalMargin * 2
-		const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2 - 60 // 减去footer高度
+		const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2
 
 		// 计算爱心的缩放比例
-		// 增加缩放比例让爱心更大：桌面端从0.85增加到0.98，移动端从0.7增加到0.82
 		const scaleRatio = this.isMobile ? 0.82 : 0.98
 		const scale = Math.min(availableWidth, availableHeight) * scaleRatio
 
