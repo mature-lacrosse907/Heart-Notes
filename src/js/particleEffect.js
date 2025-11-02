@@ -78,24 +78,26 @@ export class ParticleEffect {
 		const cards = document.querySelectorAll('.card')
 		if (cards.length === 0) return
 
-		// 收集所有卡片的中心位置
-		const cardCenters = []
-		cards.forEach(card => {
-			const rect = card.getBoundingClientRect()
-			cardCenters.push({
-				x: rect.left + rect.width / 2,
-				y: rect.top + rect.height / 2
-			})
-		})
-
-		// 计算爱心的实际边界框
+		// 收集卡片信息，基于实际边界计算爱心区域
+		const cardInfos = []
 		let minX = Infinity, maxX = -Infinity
 		let minY = Infinity, maxY = -Infinity
-		cardCenters.forEach(center => {
-			minX = Math.min(minX, center.x)
-			maxX = Math.max(maxX, center.x)
-			minY = Math.min(minY, center.y)
-			maxY = Math.max(maxY, center.y)
+		cards.forEach(card => {
+			const rect = card.getBoundingClientRect()
+			const centerX = rect.left + rect.width / 2
+			const centerY = rect.top + rect.height / 2
+
+			cardInfos.push({
+				centerX,
+				centerY,
+				halfWidth: rect.width / 2,
+				halfHeight: rect.height / 2
+			})
+
+			minX = Math.min(minX, rect.left)
+			maxX = Math.max(maxX, rect.right)
+			minY = Math.min(minY, rect.top)
+			maxY = Math.max(maxY, rect.bottom)
 		})
 
 		// 计算实际的爱心中心
@@ -104,30 +106,40 @@ export class ParticleEffect {
 
 		// 波浪起始点：爱心顶部
 		const waveOriginX = heartCenterX
-		const waveOriginY = minY
+		const marginOffset = this.isMobile ? 24 : 40
+		const waveOriginY = minY - marginOffset
 
 		// 粒子数量：移动端较少，桌面端较多
 		const particleCount = this.isMobile ? 80 : 150
 
 		// 在卡片位置上均匀采样生成粒子
-		const step = Math.max(1, Math.floor(cardCenters.length / particleCount))
+		const step = Math.max(1, Math.floor(cardInfos.length / particleCount))
 
-		for (let i = 0; i < cardCenters.length; i += step) {
-			const cardCenter = cardCenters[i]
+		for (let i = 0; i < cardInfos.length; i += step) {
+			const cardInfo = cardInfos[i]
 
 			// 从爱心中心到卡片的方向向量
-			const dx = cardCenter.x - heartCenterX
-			const dy = cardCenter.y - heartCenterY
+			const dx = cardInfo.centerX - heartCenterX
+			const dy = cardInfo.centerY - heartCenterY
 			const distance = Math.sqrt(dx * dx + dy * dy)
+			if (distance === 0) {
+				continue
+			}
 
-			// 归一化方向向量并外扩（增加10%让视觉效果更明显）
-			const expandDistance = this.isMobile ? 40 : 70
-			const normalizedDx = (dx / distance) * expandDistance
-			const normalizedDy = (dy / distance) * expandDistance
+			// 归一化方向向量并沿卡片外缘外扩
+			const normalizedDx = dx / distance
+			const normalizedDy = dy / distance
+			const epsilon = 1e-6
+			const distanceToVerticalEdge = cardInfo.halfWidth / Math.max(Math.abs(normalizedDx), epsilon)
+			const distanceToHorizontalEdge = cardInfo.halfHeight / Math.max(Math.abs(normalizedDy), epsilon)
+			const edgeDistance = Math.min(distanceToVerticalEdge, distanceToHorizontalEdge)
+			const outlineOffset = marginOffset
 
 			// 粒子的最终位置（在卡片外围）
-			const x = cardCenter.x + normalizedDx
-			const y = cardCenter.y + normalizedDy
+			const edgeX = cardInfo.centerX + normalizedDx * edgeDistance
+			const edgeY = cardInfo.centerY + normalizedDy * edgeDistance
+			const x = edgeX + normalizedDx * outlineOffset
+			const y = edgeY + normalizedDy * outlineOffset
 
 			// 计算粒子到波浪起始点的距离（用于延迟出现）
 			const distanceFromWaveOrigin = Math.sqrt(

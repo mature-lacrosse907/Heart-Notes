@@ -17,6 +17,18 @@ export class CardManager {
 		this.isMobile = isMobileDevice()
 		this.heartPositions = CONFIG.LAYOUT.getHeartPositions()
 		this.currentPositionIndex = 0
+		const initialWidth = this.isMobile
+			? CONFIG.CARD.MOBILE_WIDTH
+			: CONFIG.CARD.DESKTOP_WIDTH
+		const initialHeight = this.isMobile
+			? CONFIG.CARD.MOBILE_HEIGHT
+			: CONFIG.CARD.DESKTOP_HEIGHT
+		this.cardMetrics = {
+			width: initialWidth,
+			height: initialHeight,
+			sampleCount: 0
+		}
+		this._layoutCache = null
 	}
 
 	/**
@@ -49,43 +61,36 @@ export class CardManager {
 			message = randomFrom(CONFIG.MESSAGES)
 		}
 
-		// 计算位置参数
-		const cardWidth = this.isMobile
-			? CONFIG.CARD.MOBILE_WIDTH
-			: CONFIG.CARD.DESKTOP_WIDTH
-		const cardHeight = this.isMobile
-			? CONFIG.CARD.MOBILE_HEIGHT
-			: CONFIG.CARD.DESKTOP_HEIGHT
-		const horizontalMargin = this.isMobile
-			? CONFIG.SPACING.MOBILE_HORIZONTAL
-			: CONFIG.SPACING.DESKTOP_HORIZONTAL
-		const verticalMargin = this.isMobile
-			? CONFIG.SPACING.MOBILE_VERTICAL
-			: CONFIG.SPACING.DESKTOP_VERTICAL
+			// 计算位置参数
+			const layout = this.computeLayoutGeometry()
+			const {
+				cardWidth,
+				cardHeight,
+				horizontalMargin,
+				verticalMargin,
+				scale,
+				centerOffsetX,
+				centerOffsetY,
+				verticalOffsetRatio,
+				verticalDelta
+			} = layout
 
 		let left, top
+		let jitterX = 0
+		let jitterY = 0
 
 		// 使用爱心形状布局或随机布局
 		if (CONFIG.LAYOUT.USE_HEART_SHAPE) {
-			// 获取当前位置索引对应的爱心坐标点
-			const position = this.heartPositions[this.currentPositionIndex % this.heartPositions.length]
-
-			// 计算可用区域（考虑卡片尺寸和边距）
-			const availableWidth = window.innerWidth - cardWidth - horizontalMargin * 2
-			const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2
-
-			// 计算爱心的缩放比例（取较小值以确保完整显示）
-			const scaleRatio = this.isMobile ? 0.82 : 0.98
-			const scale = Math.min(availableWidth, availableHeight) * scaleRatio
-
-			// 将归一化坐标转换为实际像素坐标（居中显示）
-			left = horizontalMargin + (availableWidth - scale) / 2 + position.x * scale
-			top = verticalMargin + (availableHeight - scale) / 2 + position.y * scale
+				const position = this.heartPositions[this.currentPositionIndex % this.heartPositions.length]
+				left = centerOffsetX + position.x * scale
+				top = centerOffsetY + (position.y + verticalOffsetRatio) * scale + verticalDelta
 
 			// 添加一些随机偏移，让卡片看起来更自然、更密集
 			const randomOffset = this.isMobile ? 8 : 15
-			left += (Math.random() - 0.5) * randomOffset
-			top += (Math.random() - 0.5) * randomOffset
+			jitterX = (Math.random() - 0.5) * randomOffset
+			jitterY = 0 // 保持垂直方向稳定，确保爱心上下对称
+			left += jitterX
+			top += jitterY
 
 			// 循环使用位置
 			this.currentPositionIndex++
@@ -134,7 +139,9 @@ export class CardManager {
 			translateY: 0,
 			left,
 			top,
-			lastPosition: { left, top }
+			lastPosition: { left, top },
+			randomJitterX: jitterX,
+			randomJitterY: jitterY
 		})
 
 		// 应用初始transform
@@ -149,10 +156,15 @@ export class CardManager {
 		stateManager.bringToFront(card)
 
 		// 存储尺寸
+		const measuredWidth = card.offsetWidth
+		const measuredHeight = card.offsetHeight
+
 		stateManager.updateCardState(card, {
-			width: card.offsetWidth,
-			height: card.offsetHeight
+			width: measuredWidth,
+			height: measuredHeight
 		})
+
+		this.updateCardMetrics(measuredWidth, measuredHeight)
 
 		// 入场动画
 		requestAnimationFrame(() => {
@@ -173,6 +185,52 @@ export class CardManager {
         if (CONFIG.DEBUG) {
             console.log(`创建卡片后: 活动卡片数 = ${stateManager.getActiveCardCount()}`)
         }
+	}
+
+	updateCardMetrics(width, height) {
+		if (!Number.isFinite(width) || !Number.isFinite(height)) return
+
+		const metrics = this.cardMetrics
+		const prevWidth = metrics.width
+		const prevHeight = metrics.height
+		const prevCount = metrics.sampleCount || 0
+		const nextCount = prevCount + 1
+
+		const newWidth = prevWidth + (width - prevWidth) / nextCount
+		const newHeight = prevHeight + (height - prevHeight) / nextCount
+
+		metrics.width = newWidth
+		metrics.height = newHeight
+		metrics.sampleCount = nextCount
+		this._layoutCache = null
+	}
+
+	refreshMetricsFromDom() {
+		const cards = this.board.querySelectorAll('.card')
+		if (!cards.length) {
+			this.cardMetrics = {
+				width: this.isMobile ? CONFIG.CARD.MOBILE_WIDTH : CONFIG.CARD.DESKTOP_WIDTH,
+				height: this.isMobile ? CONFIG.CARD.MOBILE_HEIGHT : CONFIG.CARD.DESKTOP_HEIGHT,
+				sampleCount: 0
+			}
+			this._layoutCache = null
+			return
+		}
+
+		let sumWidth = 0
+		let sumHeight = 0
+		cards.forEach(card => {
+			sumWidth += card.offsetWidth
+			sumHeight += card.offsetHeight
+		})
+
+		const avgWidth = sumWidth / cards.length
+		const avgHeight = sumHeight / cards.length
+
+		if (Number.isFinite(avgWidth)) this.cardMetrics.width = avgWidth
+		if (Number.isFinite(avgHeight)) this.cardMetrics.height = avgHeight
+		this.cardMetrics.sampleCount = cards.length
+		this._layoutCache = null
 	}
 
 	/**
@@ -358,6 +416,7 @@ export class CardManager {
 
 		// 从DOM中移除
 		card.remove()
+		this.refreshMetricsFromDom()
 	}
 
 	/**
@@ -548,8 +607,26 @@ export class CardManager {
 		this.isMobile = isMobileDevice()
 
 		// 如果移动端状态改变，重新获取爱心位置
-		if (wasMobile !== this.isMobile) {
-			this.heartPositions = CONFIG.LAYOUT.getHeartPositions()
+			if (wasMobile !== this.isMobile) {
+				this.heartPositions = CONFIG.LAYOUT.getHeartPositions()
+				this.cardMetrics = {
+					width: this.isMobile ? CONFIG.CARD.MOBILE_WIDTH : CONFIG.CARD.DESKTOP_WIDTH,
+					height: this.isMobile ? CONFIG.CARD.MOBILE_HEIGHT : CONFIG.CARD.DESKTOP_HEIGHT,
+					sampleCount: 0
+				}
+				this._layoutCache = null
+			// 切换布局后根据最新的DOM尺寸刷新基线
+			const schedule = (fn) => {
+				if (typeof requestAnimationFrame === 'function') {
+					requestAnimationFrame(fn)
+				} else {
+					setTimeout(fn, 0)
+				}
+			}
+			schedule(() => {
+				this.refreshMetricsFromDom()
+				this.relayoutCards()
+			})
 		}
 	}
 
@@ -562,54 +639,28 @@ export class CardManager {
 		const cards = document.querySelectorAll('.card')
 		if (cards.length === 0) return
 
-		// 计算参数
-		const cardWidth = this.isMobile
-			? CONFIG.CARD.MOBILE_WIDTH
-			: CONFIG.CARD.DESKTOP_WIDTH
-		const cardHeight = this.isMobile
-			? CONFIG.CARD.MOBILE_HEIGHT
-			: CONFIG.CARD.DESKTOP_HEIGHT
-		const horizontalMargin = this.isMobile
-			? CONFIG.SPACING.MOBILE_HORIZONTAL
-			: CONFIG.SPACING.DESKTOP_HORIZONTAL
-		const verticalMargin = this.isMobile
-			? CONFIG.SPACING.MOBILE_VERTICAL
-			: CONFIG.SPACING.DESKTOP_VERTICAL
+		const {
+			scale,
+			centerOffsetX,
+			centerOffsetY,
+			verticalOffsetRatio,
+			verticalDelta
+		} = this.computeLayoutGeometry()
 
-		// 计算可用区域
-		const availableWidth = window.innerWidth - cardWidth - horizontalMargin * 2
-		const availableHeight = window.innerHeight - cardHeight - verticalMargin * 2
-
-		// 计算爱心的缩放比例
-		const scaleRatio = this.isMobile ? 0.82 : 0.98
-		const scale = Math.min(availableWidth, availableHeight) * scaleRatio
-
-		// 计算中心偏移
-		const centerOffsetX = horizontalMargin + (availableWidth - scale) / 2
-		const centerOffsetY = verticalMargin + (availableHeight - scale) / 2
-
-		// 重新定位每张卡片
 		cards.forEach((card, index) => {
 			const state = stateManager.getCardState(card)
 			if (!state || state.maximized || state.closing) return
 
-			// 获取对应的爱心位置
 			const position = this.heartPositions[index % this.heartPositions.length]
+			const jitterX = state.randomJitterX ?? 0
+			const jitterY = state.randomJitterY ?? 0
 
-			// 计算新位置
-			let newLeft = centerOffsetX + position.x * scale
-			let newTop = centerOffsetY + position.y * scale
+			const newLeft = centerOffsetX + position.x * scale + jitterX
+			const newTop = centerOffsetY + (position.y + verticalOffsetRatio) * scale + verticalDelta + jitterY
 
-			// 添加随机偏移
-			const randomOffset = this.isMobile ? 8 : 15
-			newLeft += (Math.random() - 0.5) * randomOffset
-			newTop += (Math.random() - 0.5) * randomOffset
-
-			// 更新卡片位置
 			card.style.left = `${newLeft}px`
 			card.style.top = `${newTop}px`
 
-			// 更新状态
 			stateManager.updateCardState(card, {
 				left: newLeft,
 				top: newTop,
@@ -618,11 +669,59 @@ export class CardManager {
 		})
 	}
 
+	computeLayoutGeometry() {
+		if (this._layoutCache) return this._layoutCache
+
+		const fallbackWidth = this.isMobile ? CONFIG.CARD.MOBILE_WIDTH : CONFIG.CARD.DESKTOP_WIDTH
+		const fallbackHeight = this.isMobile ? CONFIG.CARD.MOBILE_HEIGHT : CONFIG.CARD.DESKTOP_HEIGHT
+		const cardWidth = Number.isFinite(this.cardMetrics.width) ? this.cardMetrics.width : fallbackWidth
+		const cardHeight = Number.isFinite(this.cardMetrics.height) ? this.cardMetrics.height : fallbackHeight
+		const horizontalMargin = this.isMobile
+			? CONFIG.SPACING.MOBILE_HORIZONTAL
+			: CONFIG.SPACING.DESKTOP_HORIZONTAL
+		const verticalMargin = this.isMobile
+			? CONFIG.SPACING.MOBILE_VERTICAL
+			: CONFIG.SPACING.DESKTOP_VERTICAL
+		const verticalOffsetRatio = this.isMobile
+			? CONFIG.LAYOUT.VERTICAL_OFFSET_MOBILE
+			: CONFIG.LAYOUT.VERTICAL_OFFSET_DESKTOP
+
+		const availableWidth = Math.max(window.innerWidth - cardWidth - horizontalMargin * 2, 0)
+		const availableHeight = Math.max(window.innerHeight - cardHeight - verticalMargin * 2, 0)
+
+		const scaleRatio = this.isMobile ? 0.82 : 0.98
+		const scale = Math.min(availableWidth, availableHeight) * scaleRatio
+
+		const centerOffsetX = horizontalMargin + (availableWidth - scale) / 2
+		const centerOffsetY = verticalMargin + (availableHeight - scale) / 2
+
+		const minNormalizedY = 0
+		const maxNormalizedY = 1
+		const baseMinTop = centerOffsetY + (minNormalizedY + verticalOffsetRatio) * scale
+		const baseMaxBottom = centerOffsetY + (maxNormalizedY + verticalOffsetRatio) * scale + cardHeight
+		const rawVerticalDelta = (window.innerHeight - baseMaxBottom - baseMinTop) / 2
+		const verticalDelta = Number.isFinite(rawVerticalDelta) ? rawVerticalDelta : 0
+
+		this._layoutCache = {
+			cardWidth,
+			cardHeight,
+			horizontalMargin,
+			verticalMargin,
+			scale,
+			centerOffsetX,
+			centerOffsetY,
+			verticalOffsetRatio,
+			verticalDelta
+		}
+		return this._layoutCache
+	}
+
 	/**
 	 * 处理窗口大小变化
 	 */
 	handleResize() {
 		this.updateMobileState()
+		this._layoutCache = null
 
 		// 更新全屏卡片尺寸
 		const maximizedCard = stateManager.getMaximizedCard()

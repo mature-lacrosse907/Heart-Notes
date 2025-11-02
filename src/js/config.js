@@ -186,11 +186,16 @@ export const CONFIG = {
 			'为自己的人生鲜艳上色',
 			'先把爱涂上喜欢的颜色'
 		], // 彩蛋：最后两张卡片的固定文案（倒数第二张、最后一张）
+		VERTICAL_OFFSET_DESKTOP: 0, // 基于可用高度保持爱心上下间距对称
+		VERTICAL_OFFSET_MOBILE: 0, // 移动端同样保持上下居中
 		// 爱心形状的参数化坐标点（基于数学公式）
 		// 使用归一化坐标 [0, 1]，将在实际使用时根据屏幕大小缩放
 		getHeartPositions: () => {
-			const positions = []
+			const rawPositions = []
 			const numPoints = 185 // 增加到185个点（约15%增量）
+
+			let minX = Infinity, maxX = -Infinity
+			let minY = Infinity, maxY = -Infinity
 
 			for (let i = 0; i < numPoints; i++) {
 				const t = (i / numPoints) * 2 * Math.PI
@@ -198,15 +203,20 @@ export const CONFIG = {
 				const x = 16 * Math.pow(Math.sin(t), 3)
 				const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
 
-				// 归一化到 [0, 1] 范围
-				// x 范围大约是 [-16, 16], y 范围大约是 [-16, 13]
-				const normalizedX = (x + 16) / 32
-				const normalizedY = (y + 16) / 29
-
-				positions.push({ x: normalizedX, y: normalizedY })
+				rawPositions.push({ x, y })
+				minX = Math.min(minX, x)
+				maxX = Math.max(maxX, x)
+				minY = Math.min(minY, y)
+				maxY = Math.max(maxY, y)
 			}
 
-			return positions
+			const rangeX = maxX - minX || 1
+			const rangeY = maxY - minY || 1
+
+			return rawPositions.map(({ x, y }) => ({
+				x: (x - minX) / rangeX,
+				y: (y - minY) / rangeY
+			}))
 		}
 	}
 }
