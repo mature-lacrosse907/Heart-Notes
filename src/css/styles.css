@@ -754,6 +754,17 @@ body.light-theme .card-body {
 	}
 }
 
+/* 粒子光环效果的canvas容器 */
+.particle-canvas {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	pointer-events: none;
+	z-index: 1000;
+}
+
 /* 遵循系统"减少动态效果"偏好 */
 @media (prefers-reduced-motion: reduce) {
 	* {
